@@ -3,6 +3,7 @@
 #include <agent.hpp>
 #include <instance_handler.hpp>
 #include <logger.hpp>
+#include <shlobj_core.h>
 #include <signal_handler.hpp>
 
 #include <memory>
@@ -107,7 +108,7 @@ namespace
     }
 } // namespace
 
-namespace WindowsService
+namespace windows_service
 {
     bool InstallService(const windows_api_facade::IWindowsApiFacade& windowsApiFacade)
     {
@@ -280,6 +281,8 @@ namespace WindowsService
             return;
         }
 
+        windows_service::configFilePath = configFilePath;
+
         bool res;
         if (!configFilePath.empty())
         {
@@ -300,4 +303,69 @@ namespace WindowsService
             LogInfo("Service {} started successfully.", AGENT_SERVICENAME.c_str());
         }
     }
-} // namespace WindowsService
+
+    std::string GetPowerShellPath()
+    {
+        auto is64bits = []() -> bool
+        {
+            SYSTEM_INFO systemInfo;
+            GetNativeSystemInfo(&systemInfo); // Get native system architecture
+
+            return systemInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64 ||
+                   systemInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_ARM64;
+        };
+
+        KNOWNFOLDERID folderId = is64bits() ? FOLDERID_System : FOLDERID_SystemX86;
+
+        PWSTR path = nullptr;
+        HRESULT hr = SHGetKnownFolderPath(folderId, 0, nullptr, &path);
+
+        if (SUCCEEDED(hr))
+        {
+            std::wstring powershellPath(path);
+            CoTaskMemFree(path);
+
+            powershellPath += L"\\WindowsPowerShell\\v1.0\\powershell.exe";
+
+            int size = WideCharToMultiByte(CP_UTF8, 0, powershellPath.c_str(), -1, nullptr, 0, nullptr, nullptr);
+            if (size == 0)
+            {
+                return "powershell";
+            }
+
+            std::string result(size, 0);
+            WideCharToMultiByte(CP_UTF8, 0, powershellPath.c_str(), -1, &result[0], size, nullptr, nullptr);
+            return result.c_str(); // returning c_str() removes the trailing null char
+        }
+
+        return "powershell";
+    }
+
+    void ServiceRestart()
+    {
+        STARTUPINFO si = {0};
+        PROCESS_INFORMATION pi = {0};
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+
+        const std::string pwrShell = GetPowerShellPath();
+
+        const std::string cmd = pwrShell + " -Command \"Restart-Service -Name 'Wazuh Agent' -Force\"";
+
+        if (CreateProcess(NULL,
+                          (LPSTR)cmd.c_str(),
+                          NULL,
+                          NULL,
+                          FALSE,
+                          CREATE_NEW_CONSOLE | CREATE_NEW_PROCESS_GROUP,
+                          NULL,
+                          NULL,
+                          &si,
+                          &pi))
+        {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+    }
+} // namespace windows_service

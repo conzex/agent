@@ -18,7 +18,9 @@ endif()
 add_library(RestartHandler ${SOURCES})
 target_include_directories(RestartHandler
                             PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-                            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+                            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/windows)
+
 target_link_libraries(RestartHandler PUBLIC Boost::asio CommandEntry PRIVATE Logger)
 
 include(../../cmake/ConfigureTarget.cmake)
