@@ -14,8 +14,8 @@ namespace
     SERVICE_STATUS_HANDLE g_StatusHandle = nullptr;
     HANDLE g_ServiceStopEvent = INVALID_HANDLE_VALUE;
     SERVICE_DESCRIPTION g_serviceDescription;
-    const std::string AGENT_SERVICENAME = "Wazuh Agent";
-    const std::string AGENT_SERVICEDESCRIPTION = "Wazuh Windows Agent";
+    const std::string AGENT_SERVICENAME = "DefendX Agent";
+    const std::string AGENT_SERVICEDESCRIPTION = "DefendX Windows Agent";
 
     struct ServiceHandleDeleter
     {
@@ -136,7 +136,7 @@ namespace WindowsService
         CloseServiceHandle(schService);
         CloseServiceHandle(schSCManager);
 
-        LogInfo("Wazuh Agent Service successfully installed.");
+        LogInfo("DefendX Agent Service successfully installed.");
 
         return true;
     }
@@ -170,134 +170,8 @@ namespace WindowsService
         CloseServiceHandle(schService);
         CloseServiceHandle(schSCManager);
 
-        LogInfo("Wazuh Agent Service successfully removed.");
+        LogInfo("DefendX Agent Service successfully removed.");
 
         return true;
-    }
-
-    void SetDispatcherThread()
-    {
-        SERVICE_TABLE_ENTRY ServiceTable[] = {{(LPSTR)AGENT_SERVICENAME.c_str(), (LPSERVICE_MAIN_FUNCTION)ServiceMain},
-                                              {nullptr, nullptr}};
-
-        if (!StartServiceCtrlDispatcher(ServiceTable))
-        {
-            LogError("Error: StartServiceCtrlDispatcher {}", GetLastError());
-        }
-    }
-
-    void WINAPI ServiceMain(DWORD argc, LPSTR* argv)
-    {
-        g_StatusHandle = RegisterServiceCtrlHandler(AGENT_SERVICENAME.c_str(), ServiceCtrlHandler);
-
-        if (!g_StatusHandle)
-        {
-            LogError("Failed to register ServiceCtrlHandler. Error: {}", GetLastError());
-            return;
-        }
-
-        g_ServiceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-        g_ServiceStatus.dwServiceSpecificExitCode = 0;
-
-        ReportServiceStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
-
-        g_ServiceStopEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-        if (!g_ServiceStopEvent)
-        {
-            LogError("Failed to create stop event. Error: {}", GetLastError());
-            ReportServiceStatus(SERVICE_STOPPED, NO_ERROR, 0);
-            return;
-        }
-
-        ReportServiceStatus(SERVICE_RUNNING, NO_ERROR, 0);
-
-        std::string configFilePath;
-        if (argc > 1 && argv[1] != nullptr)
-        {
-            configFilePath = argv[1];
-            LogInfo("Config file parameter received: {}", configFilePath);
-        }
-        else
-        {
-            configFilePath = "";
-            LogDebug("Using default configuration.");
-        }
-
-        auto error = NO_ERROR;
-
-        try
-        {
-            instance_handler::InstanceHandler instanceHandler = instance_handler::GetInstanceHandler(configFilePath);
-
-            if (!instanceHandler.isLockAcquired())
-            {
-                LogError("Wazuh Agent cannot start. Wazuh Agent is already running");
-                ReportServiceStatus(SERVICE_STOPPED, NO_ERROR, 0);
-                return;
-            }
-
-            LogInfo("Starting Wazuh Agent.");
-
-            Agent agent(configFilePath);
-            agent.Run();
-        }
-        catch (const std::exception& e)
-        {
-            LogError("Exception thrown in wazuh-agent: {}", e.what());
-            error = ERROR_EXCEPTION_IN_SERVICE;
-        }
-
-        WaitForSingleObject(g_ServiceStopEvent, INFINITE);
-
-        CloseHandle(g_ServiceStopEvent);
-        ReportServiceStatus(SERVICE_STOPPED, error, 0);
-    }
-
-    void WINAPI ServiceCtrlHandler(DWORD ctrlCode)
-    {
-        switch (ctrlCode)
-        {
-            case SERVICE_CONTROL_STOP:
-                HandleStopSignal("Wazuh Agent is stopping. Performing cleanup.", ctrlCode);
-                break;
-            case SERVICE_CONTROL_SHUTDOWN:
-                HandleStopSignal("System is shutting down. Performing cleanup.", ctrlCode);
-                break;
-            case SERVICE_CONTROL_PARAMCHANGE:
-                // TO DO
-                break;
-            default: break;
-        }
-    }
-
-    void ServiceStart(const std::string& configFilePath)
-    {
-        ServiceHandle hService;
-        ServiceHandle hSCManager;
-
-        if (!GetService(hSCManager, hService, SERVICE_START))
-        {
-            return;
-        }
-
-        bool res;
-        if (!configFilePath.empty())
-        {
-            const char* args[] = {configFilePath.c_str()};
-            res = ::StartService(hService.get(), 1, args);
-        }
-        else
-        {
-            res = ::StartService(hService.get(), 0, nullptr);
-        }
-
-        if (!res)
-        {
-            LogError("Error: Unable to start service. Error: {}", GetLastError());
-        }
-        else
-        {
-            LogInfo("Service {} started successfully.", AGENT_SERVICENAME.c_str());
-        }
     }
 } // namespace WindowsService
