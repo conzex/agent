@@ -1,5 +1,4 @@
 #include <agent_info.hpp>
-
 #include <agent_info_persistance.hpp>
 
 #include <boost/uuid/uuid.hpp>
@@ -14,7 +13,7 @@ namespace
     constexpr size_t KEY_LENGTH = 32;
     const std::string AGENT_TYPE = "Endpoint";
     const std::string AGENT_VERSION = "5.0.0";
-    const std::string PRODUCT_NAME = "WazuhXDR";
+    const std::string PRODUCT_NAME = "DefendX XDR";
 } // namespace
 
 AgentInfo::AgentInfo(const std::string& dbFolderPath,
@@ -196,60 +195,16 @@ bool AgentInfo::SaveGroups() const
     return m_persistence->SetGroups(m_groups);
 }
 
-std::vector<std::string> AgentInfo::GetActiveIPAddresses(const nlohmann::json& networksJson) const
-{
-    std::vector<std::string> ipAddresses;
-
-    if (networksJson.contains("iface"))
-    {
-        for (const auto& iface : networksJson["iface"])
-        {
-            if (iface.contains("state") && iface["state"] == "up")
-            {
-                if (iface.contains("IPv4") && !iface["IPv4"].empty())
-                {
-                    ipAddresses.emplace_back(iface["IPv4"][0].value("address", ""));
-                }
-                if (iface.contains("IPv6") && !iface["IPv6"].empty())
-                {
-                    ipAddresses.emplace_back(iface["IPv6"][0].value("address", ""));
-                }
-            }
-        }
-    }
-    return ipAddresses;
-}
-
 void AgentInfo::LoadEndpointInfo()
 {
     if (m_getOSInfo != nullptr)
     {
         const nlohmann::json osInfo = m_getOSInfo();
         m_endpointInfo["hostname"] = osInfo.value("hostname", "Unknown");
-        m_endpointInfo["architecture"] = osInfo.value("architecture", "Unknown");
-        m_endpointInfo["os"] = nlohmann::json::object();
-        m_endpointInfo["os"]["name"] = osInfo.value("os_name", "Unknown");
-        m_endpointInfo["os"]["type"] = osInfo.value("sysname", "Unknown");
-        m_endpointInfo["os"]["version"] = osInfo.value("os_version", "Unknown");
-    }
-
-    if (m_getNetworksInfo != nullptr)
-    {
-        const nlohmann::json networksInfo = m_getNetworksInfo();
-        m_endpointInfo["ip"] = GetActiveIPAddresses(networksInfo);
     }
 }
 
 void AgentInfo::LoadHeaderInfo()
 {
-    if (!m_endpointInfo.empty() && m_endpointInfo.contains("os"))
-    {
-        m_headerInfo = PRODUCT_NAME + "/" + GetVersion() + " (" + GetType() + "; " +
-                       m_endpointInfo.value("architecture", "Unknown") + "; " +
-                       m_endpointInfo["os"].value("type", "Unknown") + ")";
-    }
-    else
-    {
-        m_headerInfo = PRODUCT_NAME + "/" + GetVersion() + " (" + GetType() + "; Unknown; Unknown)";
-    }
+    m_headerInfo = PRODUCT_NAME + "/" + GetVersion() + " (" + GetType() + ")";
 }
