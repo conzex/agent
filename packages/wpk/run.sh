@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
-DIRECTORY="wazuh*"
-REPOSITORY="https://github.com/wazuh/wazuh"
+DIRECTORY="defendx*"
+REPOSITORY="https://github.com/conzex/agent"
 REFERENCE=""
 OUT_NAME=""
 CHECKSUM="no"
@@ -10,12 +10,11 @@ HAVE_PKG_NAME_WIN=false
 HAVE_PKG_NAME_MAC=false
 HAVE_PKG_NAME_LINUX=false
 AWS_REGION="us-east-1"
-KEYPATH="/etc/wazuh"
+KEYPATH="/etc/defendx"
 WPKCERT="${KEYPATH}/wpkcert.pem"
 WPKKEY="${KEYPATH}/wpkcert.key"
-OUTDIR="/var/local/wazuh"
+OUTDIR="/var/local/defendx"
 CHECKSUMDIR="/var/local/checksum"
-
 
 help() {
     set +x
@@ -60,20 +59,15 @@ main() {
         "-pn"|"--package-name")
             if [ -n "${2}" ]; then
                 PKG_NAME="${2}"
-                if [ "${PKG_NAME: -4}" == ".msi" ]; then
-                    HAVE_PKG_NAME_WIN=true
-                elif [ "${PKG_NAME: -4}" == ".pkg" ]; then
-                    HAVE_PKG_NAME_MAC=true
-                elif [ "${PKG_NAME: -4}" == ".rpm" ]; then
-                    HAVE_PKG_NAME_LINUX=true
-                elif [ "${PKG_NAME: -4}" == ".deb" ]; then
-                    HAVE_PKG_NAME_LINUX=true
-                elif [ "${PKG_NAME: -4}" == ".apk" ]; then
-                    HAVE_PKG_NAME_LINUX=true
-                else
-                    echo "ERROR: missing package file."
-                    help 1
-                fi
+                case "${PKG_NAME: -4}" in
+                    ".msi") HAVE_PKG_NAME_WIN=true ;;
+                    ".pkg") HAVE_PKG_NAME_MAC=true ;;
+                    ".rpm"|".deb"|".apk") HAVE_PKG_NAME_LINUX=true ;;
+                    *)
+                        echo "ERROR: Missing package file."
+                        help 1
+                        ;;
+                esac
                 shift 2
             fi
             ;;
@@ -107,8 +101,8 @@ main() {
         esac
     done
 
+    mkdir -p ${KEYPATH}
     if [ -n "${AWS_WPK_CERT}" ] && [ -n "${AWS_WPK_KEY}" ]; then
-        mkdir -p ${KEYPATH}
         aws --region=${AWS_REGION} secretsmanager get-secret-value --secret-id ${AWS_WPK_CERT} | jq . > wpkcert.pem.json
         jq .SecretString wpkcert.pem.json | tr -d '"' | sed 's|\\n|\n|g' > ${WPKCERT}
         rm -f wpkcert.pem.json
@@ -117,37 +111,18 @@ main() {
         rm -f wpkcert.key.json
     fi
 
-    # Get Wazuh
     curl -sL ${REPOSITORY}/tarball/${REFERENCE} | tar zx
     cd ${DIRECTORY}
 
-    # Create package
-    if [ -z "${OUTPUT}" ]
-    then
-        OUTPUT="${OUTDIR}/${OUT_NAME}"
-        mkdir -p ${OUTDIR}
-    fi
+    OUTPUT="${OUTDIR}/${OUT_NAME}"
+    mkdir -p ${OUTDIR}
 
-    # Compress and sign package
     if [ "${HAVE_PKG_NAME_WIN}" == true ]; then
-        CURRENT_DIR=$(pwd)
-        echo "wpkpack ${OUTPUT} ${WPKCERT} ${WPKKEY} ${PKG_NAME} upgrade.bat do_upgrade.ps1"
-        cd ${OUTDIR}
-        cp ${CURRENT_DIR}/src/win32/{upgrade.bat,do_upgrade.ps1} .
-        cp /var/pkg/${PKG_NAME} ${OUTDIR} 2>/dev/null
         wpkpack ${OUTPUT} ${WPKCERT} ${WPKKEY} ${PKG_NAME} upgrade.bat do_upgrade.ps1
-        rm -f upgrade.bat do_upgrade.ps1 ${PKG_NAME}
     elif [ "${HAVE_PKG_NAME_MAC}" == true ] || [ "${HAVE_PKG_NAME_LINUX}" == true ]; then
-        CURRENT_DIR=$(pwd)
-        echo "wpkpack ${OUTPUT} ${WPKCERT} ${WPKKEY} ${PKG_NAME} upgrade.sh pkg_installer.sh"
-        cd ${OUTDIR}
-        cp ${CURRENT_DIR}/src/init/pkg_installer.sh .
-        cp ${CURRENT_DIR}/upgrade.sh .
-        cp /var/pkg/${PKG_NAME} ${OUTDIR} 2>/dev/null
         wpkpack ${OUTPUT} ${WPKCERT} ${WPKKEY} ${PKG_NAME} upgrade.sh pkg_installer.sh
-        rm -f upgrade.sh pkg_installer.sh ${PKG_NAME}
     else
-        echo "ERROR: a package (MSI/PKG/RPM/DEB) is needed to build the WPK"
+        echo "ERROR: A package (MSI/PKG/RPM/DEB) is needed to build the WPK"
         help 1
     fi
 
