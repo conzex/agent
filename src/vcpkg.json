@@ -1,5 +1,5 @@
 {
-    "name": "wazuh-agent",
+    "name": "defendx-agent",
     "version": "5.0.0",
     "dependencies": [
       {
