@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Wazuh package generator
-# Copyright (C) 2015, Wazuh Inc.
+# DefendX Agent package generator
+# Copyright (C) 2025, DefendX Inc.
 #
 # This program is a free software; you can redistribute it
 # and/or modify it under the terms of the GNU General Public
@@ -10,7 +10,7 @@
 
 set -ex
 CURRENT_PATH="$( cd $(dirname $0) ; pwd -P )"
-WAZUH_PATH="$(cd $CURRENT_PATH/..; pwd -P)"
+DEFENDX_PATH="$(cd $CURRENT_PATH/..; pwd -P)"
 ARCHITECTURE="amd64"
 SYSTEM="deb"
 OUTDIR="${CURRENT_PATH}/output/"
@@ -30,14 +30,11 @@ FUTURE="no"
 IS_STAGE="no"
 ENTRYPOINT="/home/build.sh"
 
-
 trap ctrl_c INT
 
 clean() {
     exit_code=$1
-
-    # Clean the files
-    find "${DOCKERFILE_PATH}" \( -name '*.sh' -o -name '*.tar.gz' -o -name 'wazuh-*' \) ! -name 'docker_builder.sh' -exec rm -rf {} +
+    find "${DOCKERFILE_PATH}" \( -name '*.sh' -o -name '*.tar.gz' -o -name 'defendx-*' \) ! -name 'docker_builder.sh' -exec rm -rf {} +
     exit ${exit_code}
 }
 
@@ -45,38 +42,25 @@ ctrl_c() {
     clean 1
 }
 
-download_file() {
-    URL=$1
-    DESTDIR=$2
-    if command -v curl > /dev/null 2>&1 ; then
-        (cd ${DESTDIR} && curl -sO ${URL})
-    elif command -v wget > /dev/null 2>&1 ; then
-        wget ${URL} -P ${DESTDIR} -q
-    fi
-}
-
 build_pkg() {
     CONTAINER_NAME="pkg_${SYSTEM}_${TARGET}_builder_${ARCHITECTURE}"
     DOCKERFILE_PATH="${CURRENT_PATH}/${SYSTEM}s/${ARCHITECTURE}/${TARGET}"
 
-    # Copy the necessary files
     cp ${CURRENT_PATH}/build.sh ${DOCKERFILE_PATH}
     cp ${CURRENT_PATH}/${SYSTEM}s/utils/* ${DOCKERFILE_PATH}
 
-    # Build the Docker image
     if [[ ${BUILD_DOCKER} == "yes" ]]; then
         docker build -t ${CONTAINER_NAME}:${DOCKER_TAG} ${DOCKERFILE_PATH} || return 1
     fi
 
-    # Build the Debian package with a Docker container
-    docker run -t --rm -v ${OUTDIR}:/var/local/wazuh:Z \
+    docker run -t --rm -v ${OUTDIR}:/var/local/defendx:Z \
         -e SYSTEM="$SYSTEM" \
         -e BUILD_TARGET="${TARGET}" \
         -e ARCHITECTURE_TARGET="${ARCHITECTURE}" \
         -e INSTALLATION_PATH="${INSTALLATION_PATH}" \
         -e IS_STAGE="${IS_STAGE}" \
-        -e WAZUH_BRANCH="${BRANCH}" \
-        -e WAZUH_VERBOSE="${VERBOSE}" \
+        -e DEFENDX_BRANCH="${BRANCH}" \
+        -e DEFENDX_VERBOSE="${VERBOSE}" \
         -e VCPKG_KEY="${VCPKG_KEY}" \
         -e VCPKG_BINARY_SOURCES="${VCPKG_BINARY_SOURCES}" \
         ${CUSTOM_CODE_VOL} \
@@ -84,15 +68,14 @@ build_pkg() {
         ${CONTAINER_NAME}:${DOCKER_TAG} \
         ${ENTRYPOINT} \
         ${REVISION} ${JOBS} ${DEBUG} \
-        ${CHECKSUM} ${FUTURE} ${SRC}|| return 1
+        ${CHECKSUM} ${FUTURE} ${SRC} || return 1
 
     echo "Package $(ls -Art ${OUTDIR} | tail -n 1) added to ${OUTDIR}."
-
     return 0
 }
 
 build() {
-    build_pkg  || return 1
+    build_pkg || return 1
     return 0
 }
 
@@ -102,155 +85,68 @@ help() {
     echo "Usage: $0 [OPTIONS]"
     echo
     echo "    -b, --branch <branch>      [Optional] Select Git branch."
-    echo "    -a, --architecture <arch>  [Optional] Target architecture of the package [amd64/i386/ppc64le/arm64/armhf]."
-    echo "    -j, --jobs <number>        [Optional] Change number of parallel jobs when compiling the manager or agent. By default: 2."
-    echo "    -r, --revision <rev>       [Optional] Package revision. By default: 0."
-    echo "    -s, --store <path>         [Optional] Set the destination path of package. By default, an output folder will be created."
-    echo "    -p, --path <path>          [Optional] Installation path for the package. By default: /var/ossec."
-    echo "    -d, --debug                [Optional] Build the binaries with debug symbols. By default: no."
-    echo "    -c, --checksum             [Optional] Generate checksum on the same directory than the package. By default: no."
-    echo "    -e, --entrypoint <path>    [Optional] Script to execute as entrypoint."
-    echo "    --dont-build-docker        [Optional] Locally built docker image will be used instead of generating a new one."
-    echo "    --vcpkg-binary-caching-key [Optional] VCPK remote binary caching repository key."
-    echo "    --tag                      [Optional] Tag to use with the docker image."
-    echo "    --sources <path>           [Optional] Absolute path containing wazuh source code. This option will use local source code instead of downloading it from GitHub. By default use the script path."
+    echo "    -a, --architecture <arch>  [Optional] Target architecture [amd64/i386/ppc64le/arm64/armhf]."
+    echo "    -j, --jobs <number>        [Optional] Parallel jobs. Default: 2."
+    echo "    -r, --revision <rev>       [Optional] Package revision. Default: 0."
+    echo "    -s, --store <path>         [Optional] Output directory."
+    echo "    -p, --path <path>          [Optional] Installation path. Default: /var/defendx."
+    echo "    -d, --debug                [Optional] Enable debug mode."
+    echo "    -c, --checksum             [Optional] Generate checksum."
+    echo "    --dont-build-docker        [Optional] Use existing Docker image."
+    echo "    --tag                      [Optional] Docker image tag."
+    echo "    --sources <path>           [Optional] Use local source code."
     echo "    --is_stage                 [Optional] Use release name in package."
-    echo "    --system                   [Optional] Select Package OS [rpm, deb]. By default is 'deb'."
-    echo "    --src                      [Optional] Generate the source package in the destination directory."
-    echo "    --future                   [Optional] Build test future package x.30.0 Used for development purposes."
-    echo "    --verbose                  [Optional] Print commands and their arguments as they are executed."
+    echo "    --system                   [Optional] Select OS [rpm, deb]. Default: 'deb'."
+    echo "    --src                      [Optional] Generate source package."
+    echo "    --future                   [Optional] Build future package."
+    echo "    --verbose                  [Optional] Print executed commands."
     echo "    -h, --help                 Show this help."
     echo
     exit $1
 }
-
 
 main() {
     while [ -n "$1" ]
     do
         case "$1" in
         "-b"|"--branch")
-            if [ -n "$2" ]; then
-                BRANCH="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            BRANCH="$2"; shift 2;;
         "-h"|"--help")
-            help 0
-            ;;
+            help 0;;
         "-a"|"--architecture")
-            if [ -n "$2" ]; then
-                ARCHITECTURE="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            ARCHITECTURE="$2"; shift 2;;
         "-j"|"--jobs")
-            if [ -n "$2" ]; then
-                JOBS="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            JOBS="$2"; shift 2;;
         "-r"|"--revision")
-            if [ -n "$2" ]; then
-                REVISION="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            REVISION="$2"; shift 2;;
         "-p"|"--path")
-            if [ -n "$2" ]; then
-                INSTALLATION_PATH="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            INSTALLATION_PATH="$2"; shift 2;;
         "-e"|"--entrypoint")
-            if [ -n "$2" ]; then
-                ENTRYPOINT="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            ENTRYPOINT="$2"; shift 2;;
         "-d"|"--debug")
-            DEBUG="yes"
-            shift 1
-            ;;
+            DEBUG="yes"; shift 1;;
         "-c"|"--checksum")
-            CHECKSUM="yes"
-            shift 1
-            ;;
+            CHECKSUM="yes"; shift 1;;
         "--dont-build-docker")
-            BUILD_DOCKER="no"
-            shift 1
-            ;;
+            BUILD_DOCKER="no"; shift 1;;
         "--tag")
-            if [ -n "$2" ]; then
-                DOCKER_TAG="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            DOCKER_TAG="$2"; shift 2;;
         "-s"|"--store")
-            if [ -n "$2" ]; then
-                OUTDIR="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            OUTDIR="$2"; shift 2;;
         "--sources")
-            if [ -n "$2" ]; then
-               CUSTOM_CODE_VOL="-v $2:/wazuh-local-src:Z"
-               shift 2
-            else
-                help 1
-            fi
-            ;;
+            CUSTOM_CODE_VOL="-v $2:/defendx-local-src:Z"; shift 2;;
         "--future")
-            FUTURE="yes"
-            shift 1
-            ;;
+            FUTURE="yes"; shift 1;;
         "--is_stage")
-            IS_STAGE="yes"
-            shift 1
-            ;;
+            IS_STAGE="yes"; shift 1;;
         "--src")
-            SRC="yes"
-            shift 1
-            ;;
+            SRC="yes"; shift 1;;
         "--system")
-            if [ -n "$2" ]; then
-                SYSTEM="$2"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
-        "--vcpkg-binary-caching-key")
-            if [ -n "$2" ]; then
-                VCPKG_KEY="$2"
-                VCPKG_BINARY_SOURCES="clear;nuget,GitHub,readwrite"
-                shift 2
-            else
-                help 1
-            fi
-            ;;
+            SYSTEM="$2"; shift 2;;
         "--verbose")
-            VERBOSE="yes"
-            shift 1
-            ;;
+            VERBOSE="yes"; shift 1;;
         *)
-            help 1
+            help 1;;
         esac
     done
 
@@ -259,7 +155,7 @@ main() {
     fi
 
     if [ -z "${CUSTOM_CODE_VOL}" ] && [ -z "${BRANCH}" ]; then
-        CUSTOM_CODE_VOL="-v $WAZUH_PATH:/wazuh-local-src:Z"
+        CUSTOM_CODE_VOL="-v $DEFENDX_PATH:/defendx-local-src:Z"
     fi
 
     build && clean 0
