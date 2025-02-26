@@ -1,8 +1,5 @@
-# Created by Wazuh, Inc. <info@wazuh.com>.
-# This program is a free software; you can redistribute it and/or modify it under the terms of GPLv2
-
 param (
-    [string]$MSI_NAME = "wazuh-agent",
+    [string]$MSI_NAME = "defendx-agent",
     [string]$SIGN = "no",
     [string]$DEBUG = "no",
     [string]$CMAKE_CONFIG = "Debug",
@@ -16,99 +13,73 @@ param (
 $SIGNTOOL_EXE = "signtool.exe"
 $CV2PDB_EXE = "cv2pdb.exe"
 
-if(($help.isPresent)) {
+if ($help) {
     "
-    This tool can be used to generate the Windows Wazuh agent msi package.
+    This tool can be used to generate the Windows DefendX Agent MSI package.
 
-    PARAMETERS TO BUILD WAZUH-AGENT MSI (OPTIONALS):
-        1. MSI_NAME: MSI package name output. By default 'wazuh-agent'.
-        2. SIGN: Define sign action process (yes or no). By default 'no'.
-        3. DEBUG: Define debug symbols generation process (yes or no). By default 'no'.
-        4. CMAKE_CONFIG: Cmake config type, Debug, Release, RelWithDebInfo or MinSizeRel. By default 'Debug'.
-        5. SIGN_TOOLS_PATH: Sign tools path. Not needed if PATH env var is correctly configured.
-        6. CV2PDB_PATH: Debug symbols tools path. Not needed if PATH env var is correctly configured.
-        7. CERTIFICATE_PATH: Path to the .pfx certificate file. If not specified, signtool /a parameter will be use.
-        8. CERTIFICATE_PASSWORD: Password for the .pfx certificate file. If not specified, signtool /a parameter will be use.
+    PARAMETERS TO BUILD DEFENDX-AGENT MSI (OPTIONAL):
+        1. MSI_NAME: MSI package name output. Default: 'defendx-agent'.
+        2. SIGN: Define signing action (yes or no). Default: 'no'.
+        3. DEBUG: Generate debug symbols (yes or no). Default: 'no'.
+        4. CMAKE_CONFIG: CMake config type (Debug, Release, etc.). Default: 'Debug'.
+        5. SIGN_TOOLS_PATH: Path for signing tools (if not set in PATH env).
+        6. CV2PDB_PATH: Debug symbols tools path (if not set in PATH env).
+        7. CERTIFICATE_PATH: Path to .pfx certificate file for signing.
+        8. CERTIFICATE_PASSWORD: Password for the .pfx certificate file.
 
     USAGE:
-
-        * WAZUH:
-          $ ./generate_wazuh_msi.ps1  -MSI_NAME {{ NAME }} -SIGN {{ yes|no }} -DEBUG {{ yes|no }} -SIGN_TOOLS_PATH {{ PATH }} -CV2PDB_PATH {{ PATH }} -CERTIFICATE_PATH {{ CERTIFICATE_PATH }} -CERTIFICATE_PASSWORD {{ CERTIFICATE_PASSWORD }}
-            Build a devel msi:    $ ./generate_wazuh_msi.ps1 -MSI_NAME wazuh-agent_4.9.0-0_windows_0ceb378 -SIGN no
-            Build a prod msi:     $ ./generate_wazuh_msi.ps1 -MSI_NAME wazuh-agent-4.9.0-1 -SIGN yes
+        * DEFENDX:
+          $ ./generate_defendx_msi.ps1 -MSI_NAME defendx-agent -SIGN yes -DEBUG no
     "
     Exit
 }
 
-function BuildWazuhMsi(){
-
+function BuildDefendXMsi() {
     $MSI_NAME = "$MSI_NAME.msi"
     Write-Host "MSI_NAME = $MSI_NAME"
 
-    if($DEBUG -eq "yes"){
-        if($CV2PDB_PATH -ne ""){
-            $CV2PDB_EXE = $CV2PDB_PATH + "/" + $CV2PDB_EXE
+    if ($DEBUG -eq "yes") {
+        if ($CV2PDB_PATH -ne "") {
+            $CV2PDB_EXE = "$CV2PDB_PATH/$CV2PDB_EXE"
         }
 
         $originalDir = Get-Location
-        cd $PSScriptRoot/../../build/$CMAKE_CONFIG
+        cd "$PSScriptRoot/../../build/$CMAKE_CONFIG"
 
-        $exeFiles = @()
-
-        # Every .exe and .dll
-        $exeFiles += Get-ChildItem -Filter "*.exe"
+        $exeFiles = Get-ChildItem -Filter "*.exe"
         $exeFiles += Get-ChildItem -Filter "*.dll"
 
-        # Extract symbols
-        foreach ($file in $exeFiles)
-        {
-            Write-Host "Extracting dbg symbols from" $file.FullName
-            $args = $file.FullName # Source (exe/dll with debug symbols)
-            $args += " "
-            $args += $file.FullName  # Destination (same as source - exe/dll is stripped of debug symbols)
-            $args += " "
-            $args += $file.BaseName
-            $args += ".pdb"
-
+        foreach ($file in $exeFiles) {
+            Write-Host "Extracting debug symbols from $($file.FullName)"
+            $args = "$($file.FullName) $($file.FullName) $($file.BaseName).pdb"
             Start-Process -FilePath $CV2PDB_EXE -ArgumentList $args -WindowStyle Hidden
         }
 
         Write-Host "Waiting for processes to finish"
         Wait-Process -Name cv2pdb -Timeout 10
 
-        # Compress every pdb file in current folder
         $pdbFiles = Get-ChildItem -Filter "*.pdb"
-
         $ZIP_NAME = "$($MSI_NAME.Replace('.msi', '-debug-symbols.zip'))"
 
         Write-Host "Compressing debug symbols to $ZIP_NAME"
         Compress-Archive -Path $pdbFiles -Force -DestinationPath "$ZIP_NAME"
 
-        dir "*debug-symbols.zip"
-
         Remove-Item -Path "*.pdb"
-
         cd $originalDir
-
     }
 
-    if($SIGN_TOOLS_PATH -ne ""){
-        $SIGNTOOL_EXE = $SIGN_TOOLS_PATH + "/" + $SIGNTOOL_EXE
+    if ($SIGN_TOOLS_PATH -ne "") {
+        $SIGNTOOL_EXE = "$SIGN_TOOLS_PATH/$SIGNTOOL_EXE"
     }
 
-    if($SIGN -eq "yes"){
-        # Determine signing command options
+    if ($SIGN -eq "yes") {
         $signOptions = @()
         if ($CERTIFICATE_PATH -ne "" -and $CERTIFICATE_PASSWORD -ne "") {
-            $signOptions += "/f"
-            $signOptions += "`"$CERTIFICATE_PATH`""
-            $signOptions += "/p"
-            $signOptions += "`"$CERTIFICATE_PASSWORD`""
+            $signOptions += "/f `"$CERTIFICATE_PATH`" /p `"$CERTIFICATE_PASSWORD`""
         } else {
             $signOptions += "/a"
         }
 
-        # Define files to sign
         $filesToSign = @(
             "$PSScriptRoot\..\..\build\$CMAKE_CONFIG\*.exe",
             "$PSScriptRoot\..\..\build\$CMAKE_CONFIG\*.dll",
@@ -116,25 +87,19 @@ function BuildWazuhMsi(){
             "$PSScriptRoot\cleanup.ps1"
         )
 
-        # Sign the files
         foreach ($file in $filesToSign) {
-            Write-Host "Signing $file with"
+            Write-Host "Signing $file"
             & $SIGNTOOL_EXE sign $signOptions /tr http://timestamp.digicert.com /fd SHA256 /td SHA256 "$file"
         }
     }
 
     Write-Host "Building MSI installer..."
+    cpack -C $CMAKE_CONFIG --config "$PSScriptRoot\..\..\build\CPackConfig.cmake" -B "$PSScriptRoot"
 
-    cpack -C $CMAKE_CONFIG --config $PSScriptRoot\..\..\build\CPackConfig.cmake -B "$PSScriptRoot"
-
-    if($SIGN -eq "yes"){
+    if ($SIGN -eq "yes") {
         Write-Host "Signing $MSI_NAME..."
         & $SIGNTOOL_EXE sign $signOptions /tr http://timestamp.digicert.com /d $MSI_NAME /fd SHA256 /td SHA256 "$PSScriptRoot\$MSI_NAME"
     }
 }
 
-############################
-# MAIN
-############################
-
-BuildWazuhMsi
+BuildDefendXMsi
