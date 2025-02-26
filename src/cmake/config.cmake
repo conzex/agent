@@ -1,5 +1,5 @@
 # Project name
-set(PROJECT_NAME "Wazuh Agent")
+set(PROJECT_NAME "Defendx Agent")
 
 # Project version
 set(VERSION "0.1")
