@@ -1,12 +1,12 @@
 $programData = [System.Environment]::GetFolderPath("CommonApplicationData")
 
-# Create required directories
+# Create required directories for DefendX Agent
 $directoriesToCreate = @(
-    "$programData\wazuh-agent",
-    "$programData\wazuh-agent\config",
-    "$programData\wazuh-agent\config\shared",
-    "$programData\wazuh-agent\var",
-    "$programData\wazuh-agent\run"
+    "$programData\DefendX-Agent",
+    "$programData\DefendX-Agent\config",
+    "$programData\DefendX-Agent\config\shared",
+    "$programData\DefendX-Agent\var",
+    "$programData\DefendX-Agent\run"
 )
 foreach ($dir in $directoriesToCreate) {
     if (-not (Test-Path $dir)) {
@@ -19,11 +19,11 @@ foreach ($dir in $directoriesToCreate) {
 Write-Host "Directories created successfully."
 
 
-# Handle Wazuh config file
-$destinationDir = Join-Path -Path $programData -ChildPath "wazuh-agent\config"
-$sourcePath = "$PSScriptRoot\wazuh-agent.yml"
-$destinationPath = Join-Path -Path $destinationDir -ChildPath "wazuh-agent.yml"
-$backupPath = Join-Path -Path $destinationDir -ChildPath "wazuh-agent.yml.save"
+# Handle DefendX Agent config file
+$destinationDir = Join-Path -Path $programData -ChildPath "DefendX-Agent\config"
+$sourcePath = "$PSScriptRoot\defendx-agent.yml"
+$destinationPath = Join-Path -Path $destinationDir -ChildPath "defendx-agent.yml"
+$backupPath = Join-Path -Path $destinationDir -ChildPath "defendx-agent.yml.save"
 
 ## Check if backup file exists and remove it
 if (Test-Path $backupPath) {
@@ -52,24 +52,24 @@ if (Test-Path $sourcePath) {
 }
 
 
-# Install Wazuh service
-$serviceName = "Wazuh Agent"
-$wazuhagent = "$PSScriptRoot\wazuh-agent.exe"
+# Install DefendX Agent service
+$serviceName = "DefendX Agent"
+$defendxAgent = "$PSScriptRoot\defendx-agent.exe"
 
 Write-Host "Installing service $serviceName."
 if (-not (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)) {
-    & $wazuhagent --install-service
+    & $defendxAgent --install-service
     Write-Host "Service $serviceName installed successfully."
 } else {
     Write-Host "Service $serviceName already installed."
 }
 
-# Start Wazuh agent
-Write-Host "Starting agent."
-& $wazuhagent
+# Start DefendX Agent
+Write-Host "Starting DefendX Agent."
+& $defendxAgent
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error executing wazuh-agent.exe. Error code: $LASTEXITCODE."
+    Write-Host "Error executing defendx-agent.exe. Error code: $LASTEXITCODE."
     exit 1
 }
 
