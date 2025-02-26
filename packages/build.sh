@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Wazuh package builder
-# Copyright (C) 2015, Wazuh Inc.
+# DefendX Agent package generator
+# Copyright (C) 2025, DefendX Inc.
 #
 # This program is a free software; you can redistribute it
 # and/or modify it under the terms of the GNU General Public
