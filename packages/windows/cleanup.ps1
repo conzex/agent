@@ -1,14 +1,14 @@
-$CleanPath = "C:\ProgramData\wazuh-agent"
+$CleanPath = "C:\ProgramData\defendx-agent"
 Write-Host "Running cleanup.ps1 for path $CleanPath"
 
 # List of files to keep after uninstallation
 $Exceptions = @(
-    "config/wazuh-agent.yml"
+    "config/defendx-agent.yml"
 )
 
 $ExceptionPaths = $Exceptions | ForEach-Object { Join-Path -Path $CleanPath -ChildPath $_ }
 
-# Remove Wazuh data folder
+# Remove DefendX data folder
 Get-ChildItem -Path $CleanPath -Recurse -File | ForEach-Object {
     if ($_.FullName -notin $ExceptionPaths) {
         Write-Host "Removing file: $($_.FullName)"
@@ -30,14 +30,13 @@ if (-not (Get-ChildItem -Path $CleanPath -Recurse)) {
     Remove-Item -Path $CleanPath -Force
 }
 
-
-# Remove Wazuh service
-$serviceName = "Wazuh Agent"
-$wazuhagent = "$PSScriptRoot\wazuh-agent.exe"
+# Remove DefendX service
+$serviceName = "DefendX Agent"
+$defendxAgent = "$PSScriptRoot\defendx-agent.exe"
 
 Write-Host "Removing service $serviceName."
 if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-    & $wazuhagent --remove-service
+    & $defendxAgent --remove-service
     Write-Host "Service $serviceName removed successfully."
 } else {
     Write-Host "Service $serviceName not found."
