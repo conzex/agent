@@ -9,6 +9,9 @@
 
 namespace windows_service
 {
+    /// @brief Stores the configuration file location for use in Restart Command.
+    static std::string configFilePath;
+
     /// @brief Installs the Wazuh Agent Service.
     /// @param windowsApiFacade The Windows API facade to use.
     /// @return True if the installation is successful, false otherwise.
@@ -34,4 +37,7 @@ namespace windows_service
     /// @brief Starts the Wazuh Agent Service.
     /// @param configFilePath The path to the configuration file.
     void ServiceStart(const std::string& configFilePath);
+
+    /// @brief Restarts the Wazuh Agent Service.
+    void ServiceRestart();
 } // namespace windows_service
